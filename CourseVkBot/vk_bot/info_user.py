@@ -67,5 +67,6 @@ for event in VkLongPoll(session).listen():
             send_message(user_id, 'Введите название вашего города.')
             text = text
             get_message(user_id)
+            # доработать "получить сообщение пользователя на кнопку"
 
 
