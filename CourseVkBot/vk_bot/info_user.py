@@ -1,7 +1,7 @@
 from bot_configs.token import TOKEN
 import vk_api
 from bot_configs.token_user_vk import TOKEN_VK_USER
-from vk_api.longpoll import VkLongPoll, VkEventType
+from vk_api.longpoll import VkLongPoll, VkEventType, VkMessageFlag
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 import datetime
 
@@ -58,42 +58,69 @@ def get_message(user_id):
 
     print(text)
 
-for event in VkLongPoll(session).listen():
-    if event.type == VkEventType.MESSAGE_NEW and event.to_me:
-        text = event.text.lower()
-        user_id = event.user_id
+def test1():
+    for event in VkLongPoll(session).listen():
+        if event.type == VkEventType.MESSAGE_NEW and event.to_me:
+            text = event.text.lower()
+            user_id = event.user_id
 
-        if text == '/start':
-            send_message(user_id, message='Привет, я Бот, который найдет тебе нового друга в твоем городе!\nСледуй инструкциям, чтобы я смог понять тебя и твои пожелания!', photo=r'photo-216252230_457239018')
-            get_info_user(user_id)
+            if text == '/start':
+                send_message(user_id, message='Привет, я Бот, который найдет тебе нового друга в твоем городе!\nСледуй инструкциям, чтобы я смог понять тебя и твои пожелания!', photo=r'photo-216252230_457239018')
+                get_info_user(user_id)
 
-        # стадия теста
-        # здесь мы у пользователя просим указать город, после чего его сообщение должно добавиться в базу данных
-        if text == '/test':
-            keyboard = VkKeyboard(one_time=False)
-            keyboard.add_location_button()
-            keyboard.add_line()
-            # keyboard.add_button('Указать город', VkKeyboardColor.POSITIVE)
+            # стадия теста
+            # здесь мы у пользователя просим указать город, после чего его сообщение должно добавиться в базу данных
+            if text == '/test':
+                keyboard = VkKeyboard(one_time=True)
+                # keyboard.add_button('Указать город', VkKeyboardColor.POSITIVE)
 
-            buttons = ['Указать город']
-            buttons_colors = [VkKeyboardColor.PRIMARY, VkKeyboardColor.POSITIVE, VkKeyboardColor.SECONDARY, VkKeyboardColor.NEGATIVE]
-            #
-            for btn, btn_color in zip(buttons, buttons_colors):
-                keyboard.add_button(btn, btn_color)
+                buttons = ['Указать город']
+                buttons_colors = [VkKeyboardColor.PRIMARY, VkKeyboardColor.POSITIVE, VkKeyboardColor.SECONDARY, VkKeyboardColor.NEGATIVE]
+                #
+                for btn, btn_color in zip(buttons, buttons_colors):
+                    keyboard.add_button(btn, btn_color)
 
-            send_message(user_id, 'Чтобы начать поиск, нам необходимо собрать с вас некую информацию. Введите ваш город.', keyboard)
+                send_message(user_id, 'Чтобы начать поиск, нам необходимо собрать с вас некую информацию. Следуйте кнопкам снизу.', keyboard)
 
-        if text == "указать город": # РАЗОБРАТЬСЯ С ПОЛУЧЕНИЕМ СООБЩЕНИЙ ОТ ПОЛЬЗОВАТЕЛЯ
-            send_message(user_id, 'Введите название вашего города.')
-            text = event.message
-            if text:
-                print(text)
+            if text == "указать город": # РАЗОБРАТЬСЯ С ПОЛУЧЕНИЕМ СООБЩЕНИЙ ОТ ПОЛЬЗОВАТЕЛЯ
+                send_message(user_id, 'Введите название вашего города.')
+                for event in VkLongPoll(session).listen():
+                    if event.type == VkEventType.MESSAGE_NEW:
+                        city = str(event.text).capitalize()  # Город
+                        break
 
-                # text = text
+                new_keyboard = VkKeyboard(one_time=True)
+                button_name = ['Мужчины', 'Женщины']
+                button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.SECONDARY]
+                for btn, btn_color in zip(button_name, button_color):
+                    new_keyboard.add_button(btn, btn_color)
+
+                send_message(user_id, 'Дальше выберите кого нам искать.', new_keyboard)
+                for event in VkLongPoll(session).listen():
+                    if event.type == VkEventType.MESSAGE_NEW:
+                        gender = str(event.text).capitalize()  # Пол
+                        if gender == 'Мужчины':
+                            sex = 2
+                            print(sex)
+
+                        else:
+                            sex = 1
+                            print(sex)
+                        break
+
+                send_message(user_id, 'Поиск начался...')
+                # search_people(city, sex)  берем с базы данных
+
+                    # my_id = session.method('messages.getHistory', {'user_id': user_id, 'count': 1})
+                    # response = event.text.lower()
+                    # print(response)
+
                 # get_message(user_id)
                 # доработать "получить сообщение пользователя на кнопку"
 
             # проверка на наличие города у пользователя в database
-        if text == 'начать поиск':
-            pass
+        # if text == 'начать поиск':
+        #     pass
                     # пользуемся https://dev.vk.com/method/users.search
+
+test1()
