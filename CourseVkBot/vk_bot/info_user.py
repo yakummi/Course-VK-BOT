@@ -1,5 +1,6 @@
 from bot_configs.token import TOKEN
 import vk_api
+from bot_configs.token_user_vk import TOKEN_VK_USER
 from vk_api.longpoll import VkLongPoll, VkEventType
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 import datetime
@@ -7,6 +8,8 @@ import datetime
 session = vk_api.VkApi(token=TOKEN)
 
 vk = session.get_api()
+
+session_search = vk_api.VkApi(token=TOKEN_VK_USER)
 
 # переделал для кнопок
 def send_message(user_id, message, keyboard=None, photo=None):
@@ -22,12 +25,13 @@ def send_message(user_id, message, keyboard=None, photo=None):
 
     session.method('messages.send', post)
 
-def search_people(city, sex): # доработать функция стадия test
-    search = session.method('users.search', {'sort': 0, # sort - 0 по популярности
+def search_people(city, sex): # доработать функция стадия test # update test работает
+    search = session_search.method('users.search', {'sort': 0, # sort - 0 по популярности
                                              'hometown': city,
                                              'sex': sex})
     print(search)
 
+# search_people('Москва', 2) # Такой метод работает, с ним и будем контактировать
 
 def get_info_user(user_id):
     info = {}
@@ -79,13 +83,17 @@ for event in VkLongPoll(session).listen():
 
             send_message(user_id, 'Чтобы начать поиск, нам необходимо собрать с вас некую информацию. Введите ваш город.', keyboard)
 
-            if text == "указать город":
-                send_message(user_id, 'Введите название вашего города.')
-                text = text
-                get_message(user_id)
+        if text == "указать город": # РАЗОБРАТЬСЯ С ПОЛУЧЕНИЕМ СООБЩЕНИЙ ОТ ПОЛЬЗОВАТЕЛЯ
+            send_message(user_id, 'Введите название вашего города.')
+            text = event.message
+            if text:
+                print(text)
+
+                # text = text
+                # get_message(user_id)
                 # доработать "получить сообщение пользователя на кнопку"
 
             # проверка на наличие города у пользователя в database
-                if text == 'начать поиск':
-                    pass
+        if text == 'начать поиск':
+            pass
                     # пользуемся https://dev.vk.com/method/users.search
