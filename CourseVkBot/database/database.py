@@ -11,7 +11,7 @@ session = vk_api.VkApi(token=TOKEN_VK_USER)
 class Database:
     # Названия таблиц
     tables_names = {'main_table': 'info_user',
-                    'all_users': 'all_users',
+                    'all_users': 'all_user',
                     'favorites_users': 'favorites_users',
                     'table_countries': 'list_countries'}
 
@@ -39,16 +39,10 @@ class Database:
             # =======================================================
             cur.execute(f'''
             CREATE TABLE IF NOT EXISTS {self.tables_names['all_users']}(
-            id INT,
+            id INT not null generated always as identity primary key,
             profile_id INT,
             name VARCHAR(100),
-            surname VARCHAR(100),
-            age INT,
-            gender TEXT,
-            city VARCHAR(100),
-            country VARCHAR(150),
-            photos TEXT,
-            foreign key(id) references {self.tables_names['main_table']} (id) on delete set null 
+            surname VARCHAR(100)
             );
             ''')
             # ==================================================
@@ -100,4 +94,9 @@ class Database:
 
 def user_db():
     test = Database()
+    # test.drop_tables()
+    # test.create_tables()
+    test.write_id_country()
+
+user_db()
 

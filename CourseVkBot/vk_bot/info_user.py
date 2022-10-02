@@ -6,12 +6,15 @@ from bot_configs.token_user_vk import TOKEN_VK_USER
 from vk_api.longpoll import VkLongPoll, VkEventType, VkMessageFlag
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 import datetime
+import random
 
 session = vk_api.VkApi(token=TOKEN)
 
 vk = session.get_api()
 
 session_search = vk_api.VkApi(token=TOKEN_VK_USER)
+
+random_len = 0
 
 id_country = 0
 
@@ -44,25 +47,31 @@ def send_message(user_id, message, keyboard=None, photo=None):
     session.method('messages.send', post)
 
 def search_people(user_id, city, sex, country, stop=None): # доработать функция стадия test # update test работает
-    next_list = []
+    conn = psycopg2.connect(database=database.config.Settings.DATABASE, user=database.config.Settings.USER,
+                            password=database.config.Settings.PASSWORD)
     search = session_search.method('users.search', {'sort': 0, # sort - 0 по популярности
                                              'city': city,
                                              'sex': sex,
                                             'count': 999,
                                                     'country': country})
+
     if stop != None:
-        for info in search['items']:
-            a = (info['first_name'])
-            b = (info['last_name'])
-            c = ('https://vk.com/id'+str(info['id']))
-            next_list.append(a)
-            next_list.append(b)
-            next_list.append(c)
-
-    random_iterator = iter(next_list)
-    send_message(user_id, f'{next(random_iterator)}, {next(random_iterator)}, {next(random_iterator)}')
-
-
+        with conn.cursor() as cur:
+            try:
+                for info in search['items']:
+                    id_user = info['id']
+                    name = info['first_name']
+                    last_name = info['last_name']
+                    cur.execute(f'''
+    INSERT INTO all_user(profile_id, name, surname)
+    VALUES(
+    {id_user}, {repr(name)}, {repr(last_name)}
+    );
+    ''')
+                    conn.commit()
+            except Exception as ex:
+                print(ex)
+            conn.close()
 
 # search_people(37, 2, stop=True)
 # search_people(37, 2, stop=True)
@@ -190,6 +199,71 @@ def test1():
 
                 send_message(user_id, 'Поиск начался...', photo=r'photo-216252230_457239019')
                 search_people(user_id, city=id_city_search, sex=int(sex), country=id_country, stop=not None) # остановился тут нужно понять как делать подбор анкет
+
+
+                skip_keyboard = VkKeyboard(one_time=True)
+                button_name = ['Скип']
+                button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE]
+                for btn, btn_color in zip(button_name, button_color):
+                    skip_keyboard.add_button(btn, btn_color)
+
+                conn = psycopg2.connect(database=database.config.Settings.DATABASE, user=database.config.Settings.USER,
+                                        password=database.config.Settings.PASSWORD)
+
+                with conn.cursor() as cur:
+                    select_len = f'''
+                                                            SELECT COUNT(name)
+                                                            FROM all_user;
+                                                            '''
+                    cur.execute(select_len)
+                    rec = cur.fetchall()
+                    for l in rec:
+                        global random_len
+                        random_len+=int(l[0])
+
+
+                send_message(user_id, 'Нажмите скип, чтобы увидеть анкеты.', keyboard=skip_keyboard)
+
+            if text == 'скип':
+                skip_keyboard = VkKeyboard(one_time=True)
+                button_name = ['Скип']
+                button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE]
+                for btn, btn_color in zip(button_name, button_color):
+                    skip_keyboard.add_button(btn, btn_color)
+
+                rand = random.randint(1, random_len)
+                conn = psycopg2.connect(database=database.config.Settings.DATABASE, user=database.config.Settings.USER,
+                                        password=database.config.Settings.PASSWORD)
+                with conn.cursor() as cur:
+                    select_user = f'''
+                                SELECT *
+                                FROM all_user
+                                where id = {rand};
+                                '''
+                    cur.execute(select_user)
+                    rec = cur.fetchall()
+
+                    send_message(user_id, rec, keyboard=skip_keyboard)
+
+                # while True:
+                #     send_message(user_id, 'Ну как вам?', skip_keyboard)
+                #     conn = psycopg2.connect(database=database.config.Settings.DATABASE,
+                #                             user=database.config.Settings.USER,
+                #                             password=database.config.Settings.PASSWORD)
+                #
+                #     with conn.cursor() as cur:
+                #         try:
+                #             select = f'''
+                #                                                 SELECT *
+                #                                                 FROM all_users;
+                #                                                 '''
+                #             cur.execute(select)
+                #             rec = cur.fetchall()
+                #             send_message(user_id, rec)
+                #             break
+                #         except Exception as ex:
+                #             pass
+
 
 
 
