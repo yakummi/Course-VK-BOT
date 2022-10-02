@@ -1,5 +1,7 @@
+import database.config
 from bot_configs.token import TOKEN
 import vk_api
+import psycopg2
 from bot_configs.token_user_vk import TOKEN_VK_USER
 from vk_api.longpoll import VkLongPoll, VkEventType, VkMessageFlag
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
@@ -11,6 +13,22 @@ vk = session.get_api()
 
 session_search = vk_api.VkApi(token=TOKEN_VK_USER)
 
+id_country = 0
+
+id_city_search = 0
+
+def get_id_cities(q, id_country):
+    global id_city_search
+    id_city = session_search.method('database.getCities', {'q': q,
+                                                           'country_id': id_country})
+
+    for i in id_city['items']:
+        if i['title'] == q:
+            id_city_search+=i['id']
+
+get_id_cities('Москва', 1)
+
+# get_id_cities('Владивосток', 1)
 # переделал для кнопок
 def send_message(user_id, message, keyboard=None, photo=None):
     post = {'user_id': user_id,
@@ -25,11 +43,29 @@ def send_message(user_id, message, keyboard=None, photo=None):
 
     session.method('messages.send', post)
 
-def search_people(city, sex): # доработать функция стадия test # update test работает
+def search_people(user_id, city, sex, country, stop=None): # доработать функция стадия test # update test работает
+    next_list = []
     search = session_search.method('users.search', {'sort': 0, # sort - 0 по популярности
-                                             'hometown': city,
-                                             'sex': sex})
-    print(search)
+                                             'city': city,
+                                             'sex': sex,
+                                            'count': 999,
+                                                    'country': country})
+    if stop != None:
+        for info in search['items']:
+            a = (info['first_name'])
+            b = (info['last_name'])
+            c = ('https://vk.com/id'+str(info['id']))
+            next_list.append(a)
+            next_list.append(b)
+            next_list.append(c)
+
+    random_iterator = iter(next_list)
+    send_message(user_id, f'{next(random_iterator)}, {next(random_iterator)}, {next(random_iterator)}')
+
+
+
+# search_people(37, 2, stop=True)
+# search_people(37, 2, stop=True)
 
 # search_people('Москва', 2) # Такой метод работает, с ним и будем контактировать
 
@@ -50,13 +86,6 @@ def get_info_user(user_id):
                          'sex': sex,
                          'name': name,
                          'surname': surname}
-
-# доработка - получить последнее сообщение пользователя
-def get_message(user_id):
-    text = session.method('messages.getHistory', {'user_id': user_id,
-                                           'count': 1})
-
-    print(text)
 
 def test1():
     for event in VkLongPoll(session).listen():
@@ -80,7 +109,7 @@ def test1():
                 keyboard = VkKeyboard(one_time=True)
                 # keyboard.add_button('Указать город', VkKeyboardColor.POSITIVE)
 
-                buttons = ['Указать город']
+                buttons = ['Указать страну']
                 buttons_colors = [VkKeyboardColor.PRIMARY, VkKeyboardColor.POSITIVE, VkKeyboardColor.SECONDARY, VkKeyboardColor.NEGATIVE]
                 #
                 for btn, btn_color in zip(buttons, buttons_colors):
@@ -89,12 +118,49 @@ def test1():
                 send_message(user_id, 'Чтобы начать поиск, нам необходимо собрать с вас некую информацию. Следуйте кнопкам снизу.', keyboard)
 
             # проверку на пользователя
-            if text == "указать город": # РАЗОБРАТЬСЯ С ПОЛУЧЕНИЕМ СООБЩЕНИЙ ОТ ПОЛЬЗОВАТЕЛЯ
-                send_message(user_id, 'Введите название вашего города.')
+            if text == "указать страну": # РАЗОБРАТЬСЯ С ПОЛУЧЕНИЕМ СООБЩЕНИЙ ОТ ПОЛЬЗОВАТЕЛЯ
+                send_message(user_id, 'Введите название вашей страны.')
                 for event in VkLongPoll(session).listen():
                     if event.type == VkEventType.MESSAGE_NEW:
-                        city = str(event.text).capitalize()  # Город
+                        conn = psycopg2.connect(database=database.config.Settings.DATABASE, user=database.config.Settings.USER,
+                                                password=database.config.Settings.PASSWORD)
+
+                        # city = str(event.text).capitalize()  # Город
+                        # with open('data/data_city.txt.txt', 'w', encoding='utf-8') as f:
+                        #     f.write(str(city))
+                        country = str(event.text).capitalize()
+
+                        with conn.cursor() as cur:
+                            select = f'''
+                                        SELECT *
+                                        FROM list_countries
+                                        where country = {repr(country)};
+                                        '''
+                            cur.execute(select)
+                            rec = cur.fetchall()
+                            for id_c in rec:
+                                global id_country
+                                id_country+=int(id_c[0])
+
                         break
+
+                keyboard_city = VkKeyboard(one_time=True)
+                button_city = ['Указать город']
+                button_color_city = [VkKeyboardColor.POSITIVE]
+                for btn, btn_color in zip(button_city, button_color_city):
+                    keyboard_city.add_button(btn, btn_color)
+
+                send_message(user_id, 'Отлично', keyboard=keyboard_city)
+            if text == 'указать город':
+                send_message(user_id, 'Введите ваш город.')
+                for event in VkLongPoll(session).listen():
+                    if event.type == VkEventType.MESSAGE_NEW:
+                        city = str(event.text).capitalize() # Город
+                        get_id_cities(city, id_country)
+                        print(id_country)
+                        print(id_city_search)
+                        break
+
 
                 new_keyboard = VkKeyboard(one_time=True)
                 button_name = ['Мужчины', 'Женщины']
@@ -108,14 +174,28 @@ def test1():
                         gender = str(event.text).capitalize()  # Пол
                         if gender == 'Мужчины':
                             sex = 2
-                            print(sex)
+                            with open('data/data_sex.txt', 'w', encoding='utf-8') as f:
+                                f.write(str(sex))
 
                         else:
                             sex = 1
-                            print(sex)
+                            with open('data/data_sex.txt', 'w', encoding='utf-8') as f:
+                                f.write(str(sex))
+
                         break
 
+
+                with open('data/data_sex.txt', 'r', encoding='utf-8') as f:
+                    sex = f.read()
+
                 send_message(user_id, 'Поиск начался...', photo=r'photo-216252230_457239019')
+                search_people(user_id, city=id_city_search, sex=int(sex), country=id_country, stop=not None) # остановился тут нужно понять как делать подбор анкет
+
+
+
+
+
+
                 # search_people(city, sex)  берем с базы данных
 
                     # my_id = session.method('messages.getHistory', {'user_id': user_id, 'count': 1})
