@@ -65,12 +65,18 @@ def test1():
             user_id = event.user_id
 
             if text == '/start':
-                send_message(user_id, message='Привет, я Бот, который найдет тебе нового друга в твоем городе!\nСледуй инструкциям, чтобы я смог понять тебя и твои пожелания!', photo=r'photo-216252230_457239018')
+                start_keyboard = VkKeyboard(one_time=False)
+                buttons = ['Старт']
+                buttons_colors = [VkKeyboardColor.POSITIVE]
+                #
+                for btn, btn_color in zip(buttons, buttons_colors):
+                    start_keyboard.add_button(btn, btn_color)
+                send_message(user_id, message='Привет, я Бот, который найдет тебе нового друга в твоем городе!\nСледуй инструкциям, чтобы я смог понять тебя и твои пожелания!', keyboard=start_keyboard, photo=r'photo-216252230_457239018')
                 get_info_user(user_id)
 
             # стадия теста
             # здесь мы у пользователя просим указать город, после чего его сообщение должно добавиться в базу данных
-            if text == '/test':
+            if text == 'старт':
                 keyboard = VkKeyboard(one_time=True)
                 # keyboard.add_button('Указать город', VkKeyboardColor.POSITIVE)
 
@@ -82,6 +88,7 @@ def test1():
 
                 send_message(user_id, 'Чтобы начать поиск, нам необходимо собрать с вас некую информацию. Следуйте кнопкам снизу.', keyboard)
 
+            # проверку на пользователя
             if text == "указать город": # РАЗОБРАТЬСЯ С ПОЛУЧЕНИЕМ СООБЩЕНИЙ ОТ ПОЛЬЗОВАТЕЛЯ
                 send_message(user_id, 'Введите название вашего города.')
                 for event in VkLongPoll(session).listen():
