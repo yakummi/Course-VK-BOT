@@ -98,7 +98,7 @@ def test1():
 
                 new_keyboard = VkKeyboard(one_time=True)
                 button_name = ['Мужчины', 'Женщины']
-                button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.SECONDARY]
+                button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE]
                 for btn, btn_color in zip(button_name, button_color):
                     new_keyboard.add_button(btn, btn_color)
 
@@ -115,7 +115,7 @@ def test1():
                             print(sex)
                         break
 
-                send_message(user_id, 'Поиск начался...')
+                send_message(user_id, 'Поиск начался...', photo=r'photo-216252230_457239019')
                 # search_people(city, sex)  берем с базы данных
 
                     # my_id = session.method('messages.getHistory', {'user_id': user_id, 'count': 1})
