@@ -42,6 +42,7 @@ class Database:
                             id_vk_user INT not null primary key,
                             name VARCHAR(100),
                             surname VARCHAR(100),
+                            user_age INT,
                             id_selection INT references {self.tables_names['selection']} (id_selection) on delete set null,
                             id_preferences INT references {self.tables_names['preferences']} (id_preferences) on delete set null
                         );
