@@ -1,20 +1,20 @@
-import database.config
-from bot_configs.token import TOKEN
+import CourseVkBot.database.config
+from CourseVkBot.bot_configs.token import TOKEN
 import vk_api
 import psycopg2
-from bot_configs.token_user_vk import TOKEN_VK_USER
+from CourseVkBot.bot_configs.token_user_vk import TOKEN_VK_USER
 from vk_api.longpoll import VkLongPoll, VkEventType, VkMessageFlag
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 import datetime
-import random
+import json
+
+i = 1
 
 session = vk_api.VkApi(token=TOKEN)
 
 vk = session.get_api()
 
 session_search = vk_api.VkApi(token=TOKEN_VK_USER)
-
-random_len = 0
 
 id_country = 0
 
@@ -47,8 +47,8 @@ def send_message(user_id, message, keyboard=None, photo=None):
     session.method('messages.send', post)
 
 def search_people(user_id, city, sex, country, stop=None): # доработать функция стадия test # update test работает
-    conn = psycopg2.connect(database=database.config.Settings.DATABASE, user=database.config.Settings.USER,
-                            password=database.config.Settings.PASSWORD)
+    conn = psycopg2.connect(database=CourseVkBot.database.config.Settings.DATABASE, user=CourseVkBot.database.config.Settings.USER,
+                            password=CourseVkBot.database.config.Settings.PASSWORD)
     search = session_search.method('users.search', {'sort': 0, # sort - 0 по популярности
                                              'city': city,
                                              'sex': sex,
@@ -96,7 +96,7 @@ def get_info_user(user_id):
                          'name': name,
                          'surname': surname}
 
-def test1():
+def work():
     for event in VkLongPoll(session).listen():
         if event.type == VkEventType.MESSAGE_NEW and event.to_me:
             text = event.text.lower()
@@ -131,8 +131,8 @@ def test1():
                 send_message(user_id, 'Введите название вашей страны.')
                 for event in VkLongPoll(session).listen():
                     if event.type == VkEventType.MESSAGE_NEW:
-                        conn = psycopg2.connect(database=database.config.Settings.DATABASE, user=database.config.Settings.USER,
-                                                password=database.config.Settings.PASSWORD)
+                        conn = psycopg2.connect(database=CourseVkBot.database.config.Settings.DATABASE, user=CourseVkBot.database.config.Settings.USER,
+                                                password=CourseVkBot.database.config.Settings.PASSWORD)
 
                         # city = str(event.text).capitalize()  # Город
                         # with open('data/data_city.txt.txt', 'w', encoding='utf-8') as f:
@@ -201,87 +201,117 @@ def test1():
                 search_people(user_id, city=id_city_search, sex=int(sex), country=id_country, stop=not None) # остановился тут нужно понять как делать подбор анкет
 
 
-                skip_keyboard = VkKeyboard(one_time=True)
-                button_name = ['Скип']
+                ankets_keyboard = VkKeyboard(one_time=True)
+                button_name = ['Показать анкеты']
+                button_color = [VkKeyboardColor.POSITIVE]
+                for btn, btn_color in zip(button_name, button_color):
+                    ankets_keyboard.add_button(btn, btn_color)
+
+                send_message(user_id, 'Нажмите "показать анкеты", чтобы увидеть анкеты.', keyboard=ankets_keyboard)
+
+            if text == 'показать анкеты':
+                keyboard_user = VkKeyboard(one_time=True)
+                button_name = ['Следующий пользователь', 'В избранное']
                 button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE]
                 for btn, btn_color in zip(button_name, button_color):
-                    skip_keyboard.add_button(btn, btn_color)
+                    keyboard_user.add_button(btn, btn_color)
 
-                conn = psycopg2.connect(database=database.config.Settings.DATABASE, user=database.config.Settings.USER,
-                                        password=database.config.Settings.PASSWORD)
-
-                with conn.cursor() as cur:
-                    select_len = f'''
-                                                            SELECT COUNT(name)
-                                                            FROM all_user;
-                                                            '''
-                    cur.execute(select_len)
-                    rec = cur.fetchall()
-                    for l in rec:
-                        global random_len
-                        random_len+=int(l[0])
-
-
-                send_message(user_id, 'Нажмите скип, чтобы увидеть анкеты.', keyboard=skip_keyboard)
-
-            if text == 'скип':
-                skip_keyboard = VkKeyboard(one_time=True)
-                button_name = ['Скип']
-                button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE]
-                for btn, btn_color in zip(button_name, button_color):
-                    skip_keyboard.add_button(btn, btn_color)
-
-                rand = random.randint(1, random_len)
-                conn = psycopg2.connect(database=database.config.Settings.DATABASE, user=database.config.Settings.USER,
-                                        password=database.config.Settings.PASSWORD)
+                conn = psycopg2.connect(database=CourseVkBot.database.config.Settings.DATABASE,
+                                        user=CourseVkBot.database.config.Settings.USER,
+                                        password=CourseVkBot.database.config.Settings.PASSWORD)
                 with conn.cursor() as cur:
                     select_user = f'''
-                                SELECT *
-                                FROM all_user
-                                where id = {rand};
-                                '''
+                    SELECT *
+                    FROM all_user
+                    limit 1;
+                    '''
                     cur.execute(select_user)
                     rec = cur.fetchall()
+                    for elements in rec:
+                        name = elements[2]
+                        surname = elements[3]
+                        id = elements[1]
+                        list = {'id': id,
+                                'name': name,
+                                'surname': surname}
+                    with open('data/user_search.json', 'w', encoding='utf-8') as f:
+                        json.dump(list, f, indent=4, ensure_ascii=False)
 
-                    send_message(user_id, rec, keyboard=skip_keyboard)
+                with open('data/user_search.json', 'r', encoding='utf-8') as f:
+                    user = json.load(f)
+                send_message(user_id, f"Имя: {user['name']}\nФамилия: {user['surname']}\nСсылка: {'https://vk.com/id'+str(user['id'])}", keyboard_user)
 
-                # while True:
-                #     send_message(user_id, 'Ну как вам?', skip_keyboard)
-                #     conn = psycopg2.connect(database=database.config.Settings.DATABASE,
-                #                             user=database.config.Settings.USER,
-                #                             password=database.config.Settings.PASSWORD)
+            if text == 'следующий пользователь':
+                global i
+                conn = psycopg2.connect(database=CourseVkBot.database.config.Settings.DATABASE,
+                                        user=CourseVkBot.database.config.Settings.USER,
+                                        password=CourseVkBot.database.config.Settings.PASSWORD)
+                with conn.cursor() as cur:
+                    keyboard_user = VkKeyboard(one_time=True)
+                    button_name = ['Следующий пользователь', 'В избранное']
+                    button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE]
+                    for btn, btn_color in zip(button_name, button_color):
+                        keyboard_user.add_button(btn, btn_color)
+                    select_user = f'''
+                                    SELECT *
+                                    FROM all_user
+                                    where id = {i};
+                                    '''
+                    cur.execute(select_user)
+                    rec = cur.fetchall()
+                    for elements in rec:
+                        name = elements[2]
+                        surname = elements[3]
+                        id = elements[1]
+                        list = {'id': id,
+                                'name': name,
+                                'surname': surname}
+                    with open('data/user_search.json', 'w', encoding='utf-8') as f:
+                        json.dump(list, f, indent=4, ensure_ascii=False)
+
+                with open('data/user_search.json', 'r', encoding='utf-8') as f:
+                    user = json.load(f)
+                send_message(user_id, f"Имя: {user['name']}\nФамилия: {user['surname']}\nСсылка: {'https://vk.com/id' + str(user['id'])}", keyboard_user)
+                i = i + 1
+
+            if text == 'в избранное':
+                list = []
+
+                keyboard_user = VkKeyboard(one_time=True)
+                button_name = ['Следующий пользователь', 'В избранное']
+                button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE]
+                for btn, btn_color in zip(button_name, button_color):
+                    keyboard_user.add_button(btn, btn_color)
+
+                with open('data/user_search.json', 'r', encoding='utf-8') as f:
+                    user = f.read()
+
+
+
+                send_message(user_id, 'Пользователь добавлен в избранный лист', keyboard_user)
+
+
+
+
+
+                # skip_keyboard = VkKeyboard(one_time=False)
+                # button_name = ['Скип', 'В избранное']
+                # button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE]
+                # for btn, btn_color in zip(button_name, button_color):
+                #     skip_keyboard.add_button(btn, btn_color)
                 #
-                #     with conn.cursor() as cur:
-                #         try:
-                #             select = f'''
-                #                                                 SELECT *
-                #                                                 FROM all_users;
-                #                                                 '''
-                #             cur.execute(select)
-                #             rec = cur.fetchall()
-                #             send_message(user_id, rec)
-                #             break
-                #         except Exception as ex:
-                #             pass
+                #
+                # conn = psycopg2.connect(database=CourseVkBot.database.config.Settings.DATABASE, user=CourseVkBot.database.config.Settings.USER,
+                #                         password=CourseVkBot.database.config.Settings.PASSWORD)
+                # with conn.cursor() as cur:
+                #     select_user = f'''
+                #                 SELECT *
+                #                 FROM all_user
+                #                 where id = {rand};
+                #                 '''
+                #     cur.execute(select_user)
+                #     rec = cur.fetchall()
+                #
+                #     send_message(user_id, rec, keyboard=skip_keyboard)
 
-
-
-
-
-
-
-                # search_people(city, sex)  берем с базы данных
-
-                    # my_id = session.method('messages.getHistory', {'user_id': user_id, 'count': 1})
-                    # response = event.text.lower()
-                    # print(response)
-
-                # get_message(user_id)
-                # доработать "получить сообщение пользователя на кнопку"
-
-            # проверка на наличие города у пользователя в database
-        # if text == 'начать поиск':
-        #     pass
-                    # пользуемся https://dev.vk.com/method/users.search
-
-test1()
+work()

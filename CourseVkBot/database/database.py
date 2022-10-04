@@ -2,7 +2,7 @@ import psycopg2
 from dataclasses import dataclass
 from config import Settings
 import vk_api
-from bot_configs.token_user_vk import TOKEN_VK_USER
+from CourseVkBot.bot_configs.token_user_vk import TOKEN_VK_USER
 conn = psycopg2.connect(database=Settings.DATABASE, user=Settings.USER, password=Settings.PASSWORD)
 
 session = vk_api.VkApi(token=TOKEN_VK_USER)
@@ -48,16 +48,9 @@ class Database:
             # ==================================================
             cur.execute(f'''
             CREATE TABLE IF NOT EXISTS {self.tables_names['favorites_users']}(
-            id INT,
             profile_id INT,
             name VARCHAR(100),
-            surname VARCHAR(100),
-            age INT,
-            gender TEXT,
-            city VARCHAR(100),
-            country VARCHAR(150),
-            photos TEXT,
-            foreign key(id) references {self.tables_names['main_table']} (id) on delete set null 
+            surname VARCHAR(100)
             );
             ''')
             conn.commit()
@@ -96,7 +89,7 @@ def user_db():
     test = Database()
     # test.drop_tables()
     # test.create_tables()
-    test.write_id_country()
+    # test.write_id_country()
 
 user_db()
 
