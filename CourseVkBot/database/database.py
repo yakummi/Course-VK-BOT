@@ -1,6 +1,6 @@
 import psycopg2
 from dataclasses import dataclass
-from config import Settings
+from CourseVkBot.database.config import Settings
 import vk_api
 from CourseVkBot.bot_configs.token_user_vk import TOKEN_VK_USER
 conn = psycopg2.connect(database=Settings.DATABASE, user=Settings.USER, password=Settings.PASSWORD)
@@ -50,12 +50,27 @@ class Database:
             CREATE TABLE IF NOT EXISTS {self.tables_names['favorites_users']}(
             profile_id INT,
             name VARCHAR(100),
-            surname VARCHAR(100)
+            surname VARCHAR(100),
+            age INT
             );
             ''')
             conn.commit()
         conn.close()
 
+    def drop_users(self):
+        with conn.cursor() as cur:
+            cur.execute(f'''
+                        DROP TABLE {self.tables_names['all_users']} CASCADE;
+                        ''')
+            cur.execute(f'''
+                        CREATE TABLE IF NOT EXISTS {self.tables_names['all_users']}(
+                        id INT not null generated always as identity primary key,
+                        profile_id INT,
+                        name VARCHAR(100),
+                        surname VARCHAR(100)
+                        );
+                        ''')
+            conn.commit()
     def drop_tables(self):
         with conn.cursor() as cur:
             cur.execute(f'''
