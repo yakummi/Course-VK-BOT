@@ -141,7 +141,7 @@ class VkBot:
                     self.get_info_user(user_id)
 
                 if text == 'старт':
-                    keyboard = VkKeyboard(one_time=True)
+                    keyboard = VkKeyboard(one_time=False)
 
                     buttons = ['Указать страну']
                     buttons_colors = [VkKeyboardColor.PRIMARY, VkKeyboardColor.POSITIVE, VkKeyboardColor.SECONDARY, VkKeyboardColor.NEGATIVE]
@@ -200,7 +200,7 @@ class VkBot:
                     for btn, btn_color in zip(button_name, button_color):
                         new_keyboard.add_button(btn, btn_color)
 
-                    self.send_message(user_id, 'Дальше выберите кого нам искать.', new_keyboard)
+                    self.send_message(user_id, 'Дальше выберите кого нам искать.', new_keyboard, photo='photo-216252230_457239068')
                     for event in VkLongPoll(self.session).listen():
                         if event.type == VkEventType.MESSAGE_NEW:
                             gender = str(event.text).capitalize()  # Пол
