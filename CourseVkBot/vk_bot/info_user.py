@@ -39,8 +39,7 @@ class VkBot:
 
     def info_search(self, user_id, age_user):
         info = self.session_search.method('users.get', {'user_id': user_id,
-                                                   'fields': 'bdate'})
-        print(info)
+                                                        'fields': 'bdate'})
         for i in info:
             if 'bdate' in i.keys():
                 date = i['bdate'].split('.')
@@ -54,7 +53,7 @@ class VkBot:
 
     def get_id_cities(self, q, id_country):
         id_city = self.session_search.method('database.getCities', {'q': q,
-                                                               'country_id': id_country})
+                                                                    'country_id': id_country})
 
         for i in id_city['items']:
             if i['title'] == q:
@@ -73,14 +72,14 @@ class VkBot:
 
         self.session.method('messages.send', post)
 
-    def search_people(self, user_id, city, sex, country, stop=None): # доработать функция стадия test # update test работает
+    def search_people(self, user_id, city, sex, country, stop=None):
         conn = psycopg2.connect(database=CourseVkBot.database.config.Settings.DATABASE, user=CourseVkBot.database.config.Settings.USER,
-                            password=CourseVkBot.database.config.Settings.PASSWORD)
-        search = self.session_search.method('users.search', {'sort': 0, # sort - 0 по популярности
-                                                 'city': city,
-                                                 'sex': sex,
-                                                'count': 999,
-                                                        'country': country,
+                                password=CourseVkBot.database.config.Settings.PASSWORD)
+        search = self.session_search.method('users.search', {'sort': 0,
+                                                             'city': city,
+                                                             'sex': sex,
+                                                             'count': 999,
+                                                             'country': country,
                                                              'has_photo': 1})
 
         if stop != None:
@@ -105,13 +104,12 @@ class VkBot:
     def get_info_user(self, user_id):
         info = {}
         user_info = self.session.method('users.get', {'user_id': user_id,
-                                                 'fields': 'sex, bdate'}) # 1 - жен; 2 - муж; 0 - не указан
-        print(user_info)
+                                                      'fields': 'sex, bdate'})
         for information in user_info:
-            id_user = information['id'] # инфа
+            id_user = information['id']
             bdate = information['bdate']
             year_now = datetime.datetime.now().year
-            bdate = int(year_now) - int(bdate.split('.')[2]) # получил возраст пользователя
+            bdate = int(year_now) - int(bdate.split('.')[2])
             sex = information['sex']
             name = information['first_name']
             surname = information['last_name']
@@ -141,7 +139,7 @@ class VkBot:
                     self.get_info_user(user_id)
 
                 if text == 'старт':
-                    keyboard = VkKeyboard(one_time=False)
+                    keyboard = VkKeyboard(one_time=True)
 
                     buttons = ['Указать страну']
                     buttons_colors = [VkKeyboardColor.PRIMARY, VkKeyboardColor.POSITIVE, VkKeyboardColor.SECONDARY, VkKeyboardColor.NEGATIVE]
@@ -158,6 +156,8 @@ class VkBot:
                                                     password=CourseVkBot.database.config.Settings.PASSWORD)
 
                             country = str(event.text).capitalize()
+                            with open('data/data_country.txt', 'w', encoding='utf-8') as f: # переделать в бд потом
+                                f.write(str(country))
 
                             with conn.cursor() as cur:
                                 select = f'''
@@ -185,6 +185,8 @@ class VkBot:
                         if event.type == VkEventType.MESSAGE_NEW:
                             # try:
                             city = str(event.text).capitalize() # Город
+                            with open('data/data_city.txt', 'w', encoding='utf-8') as f: # потом сделать в бд
+                                f.write(str(city))
                             self.get_id_cities(city, self.id_country)
                             print(self.id_country)
                             print(self.id_city_search)
@@ -234,8 +236,8 @@ class VkBot:
 
                 if text == 'показать анкеты':
                     keyboard_user = VkKeyboard(one_time=True)
-                    button_name = ['Следующий пользователь', 'В избранное', 'Избранные']
-                    button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE]
+                    button_name = ['Следующий пользователь', 'В избранное', 'Избранные', 'Информация о поиске']
+                    button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE]
                     for btn, btn_color in zip(button_name, button_color):
                         keyboard_user.add_button(btn, btn_color)
 
@@ -274,8 +276,9 @@ class VkBot:
                                             password=CourseVkBot.database.config.Settings.PASSWORD)
                     with conn.cursor() as cur:
                         keyboard_user = VkKeyboard(one_time=True)
-                        button_name = ['Следующий пользователь', 'В избранное', 'Избранные']
-                        button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE]
+                        button_name = ['Следующий пользователь', 'В избранное', 'Избранные', 'Информация о поиске']
+                        button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE,
+                                        VkKeyboardColor.POSITIVE]
                         for btn, btn_color in zip(button_name, button_color):
                             keyboard_user.add_button(btn, btn_color)
                         select_user = f'''
@@ -309,8 +312,9 @@ class VkBot:
                                             password=CourseVkBot.database.config.Settings.PASSWORD)
 
                     keyboard_user = VkKeyboard(one_time=True)
-                    button_name = ['Следующий пользователь', 'В избранное', 'Избранные']
-                    button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE]
+                    button_name = ['Следующий пользователь', 'В избранное', 'Избранные', 'Информация о поиске']
+                    button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE,
+                                    VkKeyboardColor.POSITIVE]
                     for btn, btn_color in zip(button_name, button_color):
                         keyboard_user.add_button(btn, btn_color)
 
@@ -335,8 +339,9 @@ class VkBot:
                                             password=CourseVkBot.database.config.Settings.PASSWORD)
 
                     keyboard_user = VkKeyboard(one_time=True)
-                    button_name = ['Следующий пользователь', 'В избранное', 'Избранные']
-                    button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE]
+                    button_name = ['Следующий пользователь', 'В избранное', 'Избранные', 'Информация о поиске']
+                    button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE,
+                                    VkKeyboardColor.POSITIVE]
                     for btn, btn_color in zip(button_name, button_color):
                         keyboard_user.add_button(btn, btn_color)
 
@@ -353,6 +358,25 @@ class VkBot:
                                 self.send_message(user_id, f"Имя: {e[1]}\nФамилия: {e[2]}\nСсылка: {'https://vk.com/id' + str(e[0])}\nВозраст: {self.info_search(int(user['id']), 18)}", keyboard_user)
                             if rec == []:
                                 self.send_message(user_id,"У вас нет избранных.", keyboard_user)
+
+                if text == 'информация о поиске':
+
+                    info_keyboard = VkKeyboard(one_time=True)
+                    button_name = ['Следующий пользователь', 'В избранное', 'Избранные', 'Информация о поиске']
+                    button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE,
+                                    VkKeyboardColor.POSITIVE]
+                    for btn, btn_color in zip(button_name, button_color):
+                        info_keyboard.add_button(btn, btn_color)
+
+                    with open('data/data_sex.txt') as f: # потом сделать в бд
+                        sex = f.read()
+                    with open('data/data_city.txt', encoding='utf-8') as f:
+                        city = f.read()
+                    with open('data/data_country.txt', encoding='utf-8') as f:
+                        country = f.read()
+
+                    self.send_message(user_id, f'Информация:\nСтрана: {country}\nГород: {city}\nПол: {sex}', keyboard=info_keyboard)
+
 
 
 if __name__ == '__main__':
