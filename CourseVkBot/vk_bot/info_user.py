@@ -8,10 +8,13 @@ from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 import datetime
 import json
 from CourseVkBot.database.database import Database
+from CourseVkBot.database.database1 import base
 
 
 
 class VkBot:
+
+    user_preferences = []
 
     i = 1
 
@@ -72,7 +75,7 @@ class VkBot:
 
         self.session.method('messages.send', post)
 
-    def search_people(self, user_id, city, sex, country, stop=None):
+    def search_people(self, user_id, city, sex, country, age_from, stop=None):
         conn = psycopg2.connect(database=CourseVkBot.database.config.Settings.DATABASE, user=CourseVkBot.database.config.Settings.USER,
                                 password=CourseVkBot.database.config.Settings.PASSWORD)
         search = self.session_search.method('users.search', {'sort': 0,
@@ -80,7 +83,9 @@ class VkBot:
                                                              'sex': sex,
                                                              'count': 999,
                                                              'country': country,
-                                                             'has_photo': 1})
+                                                             'has_photo': 1,
+                                                             'age_from': age_from-2,
+                                                             'age_to': age_from+2})
 
         if stop != None:
             with conn.cursor() as cur:
@@ -101,7 +106,7 @@ class VkBot:
                     print(ex)
                 conn.close()
 
-    def get_info_user(self, user_id):
+    def get_info_user(self, user_id): # не нужна
         info = {}
         user_info = self.session.method('users.get', {'user_id': user_id,
                                                       'fields': 'sex, bdate'})
@@ -118,7 +123,6 @@ class VkBot:
                              'name': name,
                              'surname': surname}
 
-            # Добавляю данные в базу данных
 
     def bot_functionality(self):
         for event in VkLongPoll(self.session).listen():
@@ -126,7 +130,10 @@ class VkBot:
                 text = event.text.lower()
                 user_id = event.user_id
 
+
                 if text == '/start':
+                    self.user_preferences.append(user_id)
+
                     drop_table = Database()
                     drop_table.drop_users()
                     start_keyboard = VkKeyboard(one_time=False)
@@ -141,12 +148,27 @@ class VkBot:
                 if text == 'старт':
                     keyboard = VkKeyboard(one_time=True)
 
-                    buttons = ['Указать страну']
-                    buttons_colors = [VkKeyboardColor.PRIMARY, VkKeyboardColor.POSITIVE, VkKeyboardColor.SECONDARY, VkKeyboardColor.NEGATIVE]
+                    buttons = ['Указать возраст поиска']
+                    buttons_colors = [VkKeyboardColor.PRIMARY]
                     for btn, btn_color in zip(buttons, buttons_colors):
                         keyboard.add_button(btn, btn_color)
 
                     self.send_message(user_id, 'Чтобы начать поиск, нам необходимо собрать с вас некую информацию. Следуйте кнопкам снизу.', keyboard)
+
+                if text == 'указать возраст поиска':
+                    self.send_message(user_id, 'Введите людей с каким возрастом мы ищем')
+                    for event in VkLongPoll(self.session).listen():
+                        if event.type == VkEventType.MESSAGE_NEW:
+                            self.user_preferences.append(int(event.text))
+                            break
+
+                    keyboard_country = VkKeyboard(one_time=True)
+                    button_city = ['Указать страну']
+                    button_color_city = [VkKeyboardColor.POSITIVE]
+                    for btn, btn_color in zip(button_city, button_color_city):
+                        keyboard_country.add_button(btn, btn_color)
+
+                    self.send_message(user_id, 'Отлично, двигаемся дальше.', keyboard=keyboard_country)
 
                 if text == "указать страну":
                     self.send_message(user_id, 'Введите название вашей страны.')
@@ -158,6 +180,8 @@ class VkBot:
                             country = str(event.text).capitalize()
                             with open('data/data_country.txt', 'w', encoding='utf-8') as f: # переделать в бд потом
                                 f.write(str(country))
+
+                            self.user_preferences.append(country)
 
                             with conn.cursor() as cur:
                                 select = f'''
@@ -179,6 +203,7 @@ class VkBot:
                         keyboard_city.add_button(btn, btn_color)
 
                     self.send_message(user_id, 'Отлично', keyboard=keyboard_city)
+
                 if text == 'указать город':
                     self.send_message(user_id, 'Введите ваш город.')
                     for event in VkLongPoll(self.session).listen():
@@ -187,6 +212,8 @@ class VkBot:
                             city = str(event.text).capitalize() # Город
                             with open('data/data_city.txt', 'w', encoding='utf-8') as f: # потом сделать в бд
                                 f.write(str(city))
+                            self.user_preferences.append(city)
+
                             self.get_id_cities(city, self.id_country)
                             print(self.id_country)
                             print(self.id_city_search)
@@ -206,11 +233,12 @@ class VkBot:
                     for event in VkLongPoll(self.session).listen():
                         if event.type == VkEventType.MESSAGE_NEW:
                             gender = str(event.text).capitalize()  # Пол
+                            self.user_preferences.append(gender)
+
                             if gender == 'Мужчины':
                                 sex = 2
                                 with open('data/data_sex.txt', 'w', encoding='utf-8') as f:
                                     f.write(str(sex))
-
                             else:
                                 sex = 1
                                 with open('data/data_sex.txt', 'w', encoding='utf-8') as f:
@@ -222,8 +250,14 @@ class VkBot:
                     with open('data/data_sex.txt', 'r', encoding='utf-8') as f:
                         sex = f.read()
 
+                    print(self.user_preferences)
+
+                    finish_tuple_info_user_preferences = tuple(self.user_preferences)
+
+                    base.insert_request('selection', finish_tuple_info_user_preferences)
+
                     self.send_message(user_id, 'Поиск начался...', photo=r'photo-216252230_457239019')
-                    self.search_people(user_id, city=self.id_city_search, sex=int(sex), country=self.id_country, stop=not None) # остановился тут нужно понять как делать подбор анкет
+                    self.search_people(user_id, city=self.id_city_search, sex=int(sex), country=self.id_country, age_from=self.user_preferences[1], stop=not None) # остановился тут нужно понять как делать подбор анкет
 
 
                     ankets_keyboard = VkKeyboard(one_time=True)

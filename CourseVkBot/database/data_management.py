@@ -1,4 +1,4 @@
-from database1 import test
+from database1 import base
 import json
 from datetime import datetime
 
@@ -61,17 +61,17 @@ for user in vk_data:
 print(vk_data_fixed)
 
 # наполняем базу
-id_selection = test.insert_request('selection', current_request_values)
+id_selection = base.insert_request('selection', current_request_values)
 
 for user in vk_data_fixed:
-    test.insert_base('preferences', 'users', 'photos', preferences_values, id_selection, user, photos_values)
+    base.insert_base('preferences', 'users', 'photos', preferences_values, id_selection, user, photos_values)
 
 
 # тест
 
-test.change_favorites(430467985, True)
-test.change_black_list(496266400, True)
-test.change_viewed(403454198, True)
-print(test.show_favorites(False))
-print(test.show_black_list(False))
-print(test.show_viewed(False))
+base.change_favorites(430467985, True)
+base.change_black_list(496266400, True)
+base.change_viewed(403454198, True)
+print(base.show_favorites(False))
+print(base.show_black_list(False))
+print(base.show_viewed(False))

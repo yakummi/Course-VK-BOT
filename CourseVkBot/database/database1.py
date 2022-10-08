@@ -1,14 +1,12 @@
 import psycopg2
 from dataclasses import dataclass
-from config import Settings
+from CourseVkBot.database.config import Settings
 
 import vk_api
-from bot_configs.token_user_vk import TOKEN_VK_USER
+from CourseVkBot.bot_configs.token_user_vk import TOKEN_VK_USER
 session = vk_api.VkApi(token=TOKEN_VK_USER)
 
 conn = psycopg2.connect(database=Settings.DATABASE, user=Settings.USER, password=Settings.PASSWORD)
-
-
 
 
 @dataclass
@@ -26,9 +24,9 @@ class Database:
                             id_selection SERIAL PRIMARY KEY,
                             requester INT,
                             age INT,
-                            gender VARCHAR(10),
+                            country VARCHAR(100),
                             city VARCHAR(100),
-                            country VARCHAR(100)
+                            gender VARCHAR(10)
                         );
                         ''')
             # ==================================================
@@ -76,11 +74,12 @@ class Database:
     def insert_request(self, tables_name: str, current_request_values: list): # заносит поисковой запрос в БД
         with conn.cursor() as cur:
             cur.execute(f'''
-                        INSERT INTO {self.tables_names[tables_name]} (requester, age, gender, city, country)
+                        INSERT INTO {self.tables_names[tables_name]} (requester, age, country, city, gender)
                         VALUES %s
                         RETURNING id_selection;
                         ''', (current_request_values,))
             id_sel = (cur.fetchone())[0]
+            conn.commit()
         return id_sel
 
     def insert_base(self, tables_name1: str, tables_name2: str, tables_name3: str, preferences: list, id_selection: int, columns_values: list, photo_values: list): # заносит данные в БД по запросу
@@ -165,7 +164,7 @@ class Database:
 #     test = Database()
 
 
-test = Database()
-test.drop_tables()
-test.create_tables()
+base = Database()
+base.drop_tables()
+base.create_tables()
 
