@@ -7,9 +7,8 @@ from vk_api.longpoll import VkLongPoll, VkEventType, VkMessageFlag
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 import datetime
 import json
-from CourseVkBot.database.database import Database
-from CourseVkBot.database.database1 import base
-
+from CourseVkBot.database.database import base
+import sys
 
 class VkBot:
 
@@ -32,7 +31,7 @@ class VkBot:
 
     user_preferences = []
 
-    i = 1
+    i = 2
 
     session = vk_api.VkApi(token=TOKEN)
 
@@ -63,7 +62,6 @@ class VkBot:
             for likes in photos['items']:
                 like = (likes['likes']['count'])
 
-            print(photos)
             for e in photos['items']:
                 photo = ('photo' + str(e['owner_id']) + '_' + str(e['id']))
                 photos_finish = (photo, like)
@@ -85,7 +83,6 @@ class VkBot:
                     return age_user
             else:
                 return age_user
-        print(f'Это info_search: {info}')
 
 
     def get_id_cities(self, q, id_country):
@@ -110,8 +107,6 @@ class VkBot:
         self.session.method('messages.send', post)
 
     def search_people(self, user_id, city, sex, country, age_from, stop=None):
-        conn = psycopg2.connect(database=CourseVkBot.database.config.Settings.DATABASE, user=CourseVkBot.database.config.Settings.USER,
-                                password=CourseVkBot.database.config.Settings.PASSWORD)
         search = self.session_search.method('users.search', {'sort': 0,
                                                              'city': city,
                                                              'sex': sex,
@@ -124,49 +119,32 @@ class VkBot:
 
 
         if stop != None:
-            with conn.cursor() as cur:
-                try:
-                    for info in search['items']:
-                        id_user = info['id']
-                        name = info['first_name']
-                        last_name = info['last_name']
-                        cur.execute(f'''
-        INSERT INTO all_user(profile_id, name, surname)
-        VALUES(
-        {id_user}, {repr(name)}, {repr(last_name)}
-        );
-        ''')
-                        conn.commit()
+            try:
+                for info in search['items']:
+                    id_user = info['id']
+                    name = info['first_name']
+                    last_name = info['last_name']
+                    self.get_photos_datebase(id_user)
 
-                        self.get_photos_datebase(id_user)
+                    test_info = []
 
+                    age = self.info_search(id_user, age_from)
 
+                    test_info.append(id_user)
+                    test_info.append(name)
+                    test_info.append(last_name)
+                    test_info.append(age)
 
-                        test_info = []
+                    n = tuple(test_info)
 
-                        age = self.info_search(id_user, age_from)
+                    self.user_information.append(n)
 
-                        test_info.append(id_user)
-                        test_info.append(name)
-                        test_info.append(last_name)
-                        test_info.append(age)
+                    print(self.user_information)
 
-                        n = tuple(test_info)
+            except Exception as ex:
+                print(ex)
 
-                        self.user_information.append(n)
-
-
-                        print(self.user_information)
-
-
-
-                except Exception as ex:
-                    print(ex)
-                conn.close()
-        # print(f'Это search_people: {search}')
-
-
-    def get_info_user(self, user_id): # не нужна
+    def get_info_user(self, user_id):
         info = {}
         user_info = self.session.method('users.get', {'user_id': user_id,
                                                       'fields': 'sex, bdate'})
@@ -190,12 +168,15 @@ class VkBot:
                 text = event.text.lower()
                 user_id = event.user_id
 
-
                 if text == '/start':
+
                     self.user_preferences.append(user_id)
 
-                    drop_table = Database()
-                    drop_table.drop_users()
+                    base.drop_tables()
+                    base.create_tables() # потом убрать
+                    base.write_id_country()
+
+
                     start_keyboard = VkKeyboard(one_time=False)
                     buttons = ['Старт']
                     buttons_colors = [VkKeyboardColor.POSITIVE]
@@ -234,6 +215,7 @@ class VkBot:
                     self.send_message(user_id, 'Введите название вашей страны.')
                     for event in VkLongPoll(self.session).listen():
                         if event.type == VkEventType.MESSAGE_NEW:
+
                             conn = psycopg2.connect(database=CourseVkBot.database.config.Settings.DATABASE, user=CourseVkBot.database.config.Settings.USER,
                                                     password=CourseVkBot.database.config.Settings.PASSWORD)
 
@@ -244,17 +226,20 @@ class VkBot:
                             self.user_preferences.append(country)
 
                             with conn.cursor() as cur:
-                                select = f'''
-                                            SELECT *
-                                            FROM list_countries
-                                            where country = {repr(country)};
-                                            '''
-                                cur.execute(select)
-                                rec = cur.fetchall()
-                                for id_c in rec:
-                                    self.id_country+=int(id_c[0])
-
-                            break
+                                try:
+                                    select = f'''
+                                           SELECT *
+                                           FROM ids_countries
+                                           where country = {repr(country)};
+                                           '''
+                                    cur.execute(select)
+                                    rec = cur.fetchall()
+                                    for id_c in rec:
+                                        self.id_country += int(id_c[0])
+                                    break
+                                except Exception as ex:
+                                    self.send_message(user_id, 'Вы ввели недопустимую страну, перезапустите бота!')
+                                    sys.exit()
 
                     keyboard_city = VkKeyboard(one_time=True)
                     button_city = ['Указать город']
@@ -268,20 +253,19 @@ class VkBot:
                     self.send_message(user_id, 'Введите ваш город.')
                     for event in VkLongPoll(self.session).listen():
                         if event.type == VkEventType.MESSAGE_NEW:
-                            # try:
-                            city = str(event.text).capitalize() # Город
-                            with open('data/data_city.txt', 'w', encoding='utf-8') as f: # потом сделать в бд
-                                f.write(str(city))
-                            self.user_preferences.append(city)
+                            try:
+                                city = str(event.text).capitalize() # Город
+                                with open('data/data_city.txt', 'w', encoding='utf-8') as f: # потом сделать в бд
+                                    f.write(str(city))
+                                self.user_preferences.append(city)
 
-                            self.get_id_cities(city, self.id_country)
-                            print(self.id_country)
-                            print(self.id_city_search)
-                            break
-                            # except NameError as ex:
-                            #     print(ex)
-
-
+                                self.get_id_cities(city, self.id_country)
+                                print(self.id_country)
+                                print(self.id_city_search)
+                                break
+                            except Exception as ex:
+                                self.send_message(user_id, 'Вы ввели некорректный город, перезапустите бота.')
+                                sys.exit()
 
                     new_keyboard = VkKeyboard(one_time=True)
                     button_name = ['Мужчины', 'Женщины']
@@ -292,7 +276,7 @@ class VkBot:
                     self.send_message(user_id, 'Дальше выберите кого нам искать.', new_keyboard, photo='photo-216252230_457239068')
                     for event in VkLongPoll(self.session).listen():
                         if event.type == VkEventType.MESSAGE_NEW:
-                            gender = str(event.text).capitalize()  # Пол
+                            gender = str(event.text).capitalize()
                             self.user_preferences.append(gender)
 
                             if gender == 'Мужчины':
@@ -303,9 +287,7 @@ class VkBot:
                                 sex = 1
                                 with open('data/data_sex.txt', 'w', encoding='utf-8') as f:
                                     f.write(str(sex))
-
                             break
-
 
                     with open('data/data_sex.txt', 'r', encoding='utf-8') as f:
                         sex = f.read()
@@ -325,38 +307,33 @@ class VkBot:
 
                     self.user_search_info.append(self.user_information)
 
-                    photos = {'link': 'https://ya.ru/', 'likes': False}
-                    photos_values = (photos['link'], photos['likes'])
-
-                    print(self.user_search_info)
-
-                    gen = (x for x in self.photos_user).__iter__()
+                    photos_iter = (x for x in self.photos_user).__iter__()
 
                     for users in self.user_information:
                         try:
                             base.insert_base('preferences', 'users', 'photos', self.preferences_values, id_selection,
                                             users,
-                                            gen.__next__())
+                                            photos_iter.__next__())
                         except StopIteration:
                             print('Итератор опустошен')
                             break
 
-                    print(self.photos_user)
-
-                    ankets_keyboard = VkKeyboard(one_time=True)
+                    questionnaires_keyboard = VkKeyboard(one_time=True)
                     button_name = ['Показать анкеты']
                     button_color = [VkKeyboardColor.POSITIVE]
                     for btn, btn_color in zip(button_name, button_color):
-                        ankets_keyboard.add_button(btn, btn_color)
+                        questionnaires_keyboard.add_button(btn, btn_color)
 
-                    self.send_message(user_id, 'Нажмите "показать анкеты", чтобы увидеть анкеты.', keyboard=ankets_keyboard)
+                    self.send_message(user_id, 'Нажмите "показать анкеты", чтобы увидеть анкеты.', keyboard=questionnaires_keyboard)
 
                 if text == 'показать анкеты':
                     keyboard_user = VkKeyboard(one_time=True)
-                    button_name = ['Следующий пользователь', 'В избранное', 'Избранные', 'Информация о поиске']
+                    button_name = ['Следующий пользователь', 'В избранное', 'Избранные']
                     button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE]
                     for btn, btn_color in zip(button_name, button_color):
                         keyboard_user.add_button(btn, btn_color)
+                    keyboard_user.add_line()
+                    keyboard_user.add_button(label='Добавить в черный список', color=VkKeyboardColor.NEGATIVE)
 
                     conn = psycopg2.connect(database=CourseVkBot.database.config.Settings.DATABASE,
                                             user=CourseVkBot.database.config.Settings.USER,
@@ -364,18 +341,19 @@ class VkBot:
                     with conn.cursor() as cur:
                         select_user = f'''
                         SELECT *
-                        FROM all_user
+                        FROM users
                         limit 1;
                         '''
                         cur.execute(select_user)
                         rec = cur.fetchall()
                         for elements in rec:
-                            name = elements[2]
-                            surname = elements[3]
-                            id = elements[1]
+                            name = elements[1]
+                            surname = elements[2]
+                            id = elements[0]
                             list = {'id': id,
                                     'name': name,
                                     'surname': surname}
+
                         with open('data/user_search.json', 'w', encoding='utf-8') as f:
                             json.dump(list, f, indent=4, ensure_ascii=False)
 
@@ -383,9 +361,9 @@ class VkBot:
                         user = json.load(f)
 
                     photos = self.get_photos(user['id'])
-                    print(photos)
-                    # info_search(int(user['id']), 18) # Брать из бд у нашего пользователя
+
                     self.send_message(user_id, f"Имя: {user['name']}\nФамилия: {user['surname']}\nВозраст: {self.info_search(int(user['id']), 18)}\nСсылка: {'https://vk.com/id'+str(user['id'])}", keyboard_user, photo=photos)
+                    base.change_viewed(user_id, user['id'], False)
 
                 if text == 'следующий пользователь':
                     global i
@@ -394,25 +372,29 @@ class VkBot:
                                             password=CourseVkBot.database.config.Settings.PASSWORD)
                     with conn.cursor() as cur:
                         keyboard_user = VkKeyboard(one_time=True)
-                        button_name = ['Следующий пользователь', 'В избранное', 'Избранные', 'Информация о поиске']
+                        button_name = ['Следующий пользователь', 'В избранное', 'Избранные']
                         button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE,
                                         VkKeyboardColor.POSITIVE]
                         for btn, btn_color in zip(button_name, button_color):
                             keyboard_user.add_button(btn, btn_color)
+
+                        keyboard_user.add_line()
+                        keyboard_user.add_button(label='Добавить в черный список', color=VkKeyboardColor.NEGATIVE)
                         select_user = f'''
                                         SELECT *
-                                        FROM all_user
-                                        where id = {self.i};
+                                        FROM users
+                                        where id_preferences = {self.i};
                                         '''
                         cur.execute(select_user)
                         rec = cur.fetchall()
                         for elements in rec:
-                            name = elements[2]
-                            surname = elements[3]
-                            id = elements[1]
+                            name = elements[1]
+                            surname = elements[2]
+                            id = elements[0]
                             list = {'id': id,
                                     'name': name,
                                     'surname': surname}
+
                         with open('data/user_search.json', 'w', encoding='utf-8') as f:
                             json.dump(list, f, indent=4, ensure_ascii=False)
 
@@ -422,80 +404,66 @@ class VkBot:
                     photos = self.get_photos(user['id'])
 
                     self.send_message(user_id, f"Имя: {user['name']}\nФамилия: {user['surname']}\nВозраст: {self.info_search(int(user['id']), 18)}\nСсылка: {'https://vk.com/id'+str(user['id'])}", keyboard_user, photo=photos)
-                    self.i = self.i + 1
+
+                    self.i += 1
+                    base.change_viewed(user_id, user['id'], True)
 
                 if text == 'в избранное':
-                    conn = psycopg2.connect(database=CourseVkBot.database.config.Settings.DATABASE,
-                                            user=CourseVkBot.database.config.Settings.USER,
-                                            password=CourseVkBot.database.config.Settings.PASSWORD)
 
                     keyboard_user = VkKeyboard(one_time=True)
-                    button_name = ['Следующий пользователь', 'В избранное', 'Избранные', 'Информация о поиске']
+                    button_name = ['Следующий пользователь', 'В избранное', 'Избранные']
                     button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE,
                                     VkKeyboardColor.POSITIVE]
                     for btn, btn_color in zip(button_name, button_color):
                         keyboard_user.add_button(btn, btn_color)
+
+                    keyboard_user.add_line()
+                    keyboard_user.add_button(label='Добавить в черный список', color=VkKeyboardColor.NEGATIVE)
 
                     with open('data/user_search.json', 'r', encoding='utf-8') as f:
                         user = json.load(f)
 
-                    with conn.cursor() as cur:
-                        cur.execute(f'''
-                        INSERT INTO favorites_users(profile_id, name, surname, age)
-                        VALUES(
-                        {(user['id'])}, {repr(user['name'])}, {repr(user['surname'])}, {self.info_search(int(user['id']), 18)}
-                        );
-    ''')
-                        conn.commit()
-
-
+                    base.change_favorites(user_id, user['id'], True)
                     self.send_message(user_id, 'Пользователь добавлен в избранный лист', keyboard_user)
 
                 if text == 'избранные':
-                    conn = psycopg2.connect(database=CourseVkBot.database.config.Settings.DATABASE,
-                                            user=CourseVkBot.database.config.Settings.USER,
-                                            password=CourseVkBot.database.config.Settings.PASSWORD)
 
                     keyboard_user = VkKeyboard(one_time=True)
-                    button_name = ['Следующий пользователь', 'В избранное', 'Избранные', 'Информация о поиске']
+                    button_name = ['Следующий пользователь', 'В избранное', 'Избранные']
+                    button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE,
+                                    VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE]
+
+                    for btn, btn_color in zip(button_name, button_color):
+                        keyboard_user.add_button(btn, btn_color)
+
+                    keyboard_user.add_line()
+                    keyboard_user.add_button(label='Добавить в черный список', color=VkKeyboardColor.NEGATIVE)
+
+                    favorites_users = base.show_favorites(user_id, True)
+                    for x in favorites_users:
+                        if favorites_users == None:
+                            self.send_message(user_id,"У вас нет избранных.", keyboard_user)
+                        else:
+                            self.send_message(user_id, f"Имя: {x[0]}\nФамилия: {x[1]}\nСсылка: {'https://vk.com/id' + str(x[4])}\nВозраст: {x[2]}", keyboard_user)
+
+                if text == 'добавить в черный список':
+
+                    keyboard_user = VkKeyboard(one_time=True)
+                    button_name = ['Следующий пользователь', 'В избранное', 'Избранные']
                     button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE,
                                     VkKeyboardColor.POSITIVE]
                     for btn, btn_color in zip(button_name, button_color):
                         keyboard_user.add_button(btn, btn_color)
 
-                    with conn.cursor() as cur:
-                        with conn.cursor() as cur:
-                            select = f'''
-                                        SELECT *
-                                        FROM favorites_users;
-                                        '''
-                            cur.execute(select)
-                            rec = cur.fetchall()
-                            print(rec)
-                            for e in rec:
-                                self.send_message(user_id, f"Имя: {e[1]}\nФамилия: {e[2]}\nСсылка: {'https://vk.com/id' + str(e[0])}\nВозраст: {self.info_search(int(user['id']), 18)}", keyboard_user)
-                            if rec == []:
-                                self.send_message(user_id,"У вас нет избранных.", keyboard_user)
+                    keyboard_user.add_line()
+                    keyboard_user.add_button(label='Добавить в черный список', color=VkKeyboardColor.NEGATIVE)
 
-                if text == 'информация о поиске':
+                    with open('data/user_search.json', 'r', encoding='utf-8') as f:
+                        user = json.load(f)
 
-                    info_keyboard = VkKeyboard(one_time=True)
-                    button_name = ['Следующий пользователь', 'В избранное', 'Избранные', 'Информация о поиске']
-                    button_color = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE,
-                                    VkKeyboardColor.POSITIVE]
-                    for btn, btn_color in zip(button_name, button_color):
-                        info_keyboard.add_button(btn, btn_color)
+                    base.change_black_list(user_id, user['id'], True)
 
-                    with open('data/data_sex.txt') as f: # потом сделать в бд
-                        sex = f.read()
-                    with open('data/data_city.txt', encoding='utf-8') as f:
-                        city = f.read()
-                    with open('data/data_country.txt', encoding='utf-8') as f:
-                        country = f.read()
-
-                    self.send_message(user_id, f'Информация:\nСтрана: {country}\nГород: {city}\nПол: {sex}', keyboard=info_keyboard)
-
-
+                    self.send_message(user_id, f'{user["name"]} добавлен в черный список.', keyboard=keyboard_user)
 
 if __name__ == '__main__':
     test = VkBot()
