@@ -1,12 +1,14 @@
 import psycopg2
 from dataclasses import dataclass
-from CourseVkBot.database.config import Settings
+from config import Settings
 
 import vk_api
-from CourseVkBot.bot_configs.token_user_vk import TOKEN_VK_USER
+from bot_configs.token_user_vk import TOKEN_VK_USER
 session = vk_api.VkApi(token=TOKEN_VK_USER)
 
 conn = psycopg2.connect(database=Settings.DATABASE, user=Settings.USER, password=Settings.PASSWORD)
+
+
 
 
 @dataclass
@@ -24,9 +26,9 @@ class Database:
                             id_selection SERIAL PRIMARY KEY,
                             requester INT,
                             age INT,
-                            country VARCHAR(100),
+                            gender VARCHAR(10),
                             city VARCHAR(100),
-                            gender VARCHAR(10)
+                            country VARCHAR(100)
                         );
                         ''')
             # ==================================================
@@ -74,12 +76,11 @@ class Database:
     def insert_request(self, tables_name: str, current_request_values: list): # заносит поисковой запрос в БД
         with conn.cursor() as cur:
             cur.execute(f'''
-                        INSERT INTO {self.tables_names[tables_name]} (requester, age, country, city, gender)
+                        INSERT INTO {self.tables_names[tables_name]} (requester, age, gender, city, country)
                         VALUES %s
                         RETURNING id_selection;
                         ''', (current_request_values,))
             id_sel = (cur.fetchone())[0]
-            conn.commit()
         return id_sel
 
     def insert_base(self, tables_name1: str, tables_name2: str, tables_name3: str, preferences: list, id_selection: int, columns_values: list, photo_values: list): # заносит данные в БД по запросу
@@ -105,57 +106,69 @@ class Database:
             conn.commit()
         # conn.close()
 
-    def change_favorites(self, id_vk_user: int, favorites_status: bool): # меняет статус на избранный нужен id и ключ True
+    def change_favorites(self, requester_id: int, id_vk_user: int, favorites_status: bool): # меняет статус на избранный нужен id и ключ True
         with conn.cursor() as cur:
             cur.execute(f'''
                         UPDATE preferences SET favorites=%s
-                        WHERE id_preferences=(SELECT id_preferences FROM users WHERE id_vk_user=%s);
-                        ''', (favorites_status, id_vk_user))
+                        WHERE id_preferences=(
+                        SELECT id_preferences FROM users u
+                        JOIN selection s ON u.id_selection = s.id_selection 
+                        WHERE id_vk_user=%s and requester=%s);
+                        ''', (favorites_status, id_vk_user, requester_id))
             conn.commit()
 
-    def change_black_list(self, id_vk_user: int, black_list: bool): # меняет статус на черный список нужен id и ключ True
+    def change_black_list(self, requester_id: int, id_vk_user: int, black_list: bool): # меняет статус на черный список нужен id и ключ True
         with conn.cursor() as cur:
             cur.execute(f'''
                         UPDATE preferences SET black_list=%s
-                        WHERE id_preferences=(SELECT id_preferences FROM users WHERE id_vk_user=%s);
-                        ''', (black_list, id_vk_user))
+                        WHERE id_preferences=(
+                        SELECT id_preferences FROM users u
+                        JOIN selection s ON u.id_selection = s.id_selection
+                        WHERE id_vk_user=%s and requester=%s);
+                        ''', (black_list, id_vk_user, requester_id))
             conn.commit()
 
-    def change_viewed(self, id_vk_user: int, viewed_status: bool): # меняет статус на просмотренный нужен id и ключ True
+    def change_viewed(self, requester_id: int, id_vk_user: int, viewed_status: bool): # меняет статус на просмотренный нужен id и ключ True
         with conn.cursor() as cur:
             cur.execute(f'''
                         UPDATE preferences SET viewed=%s
-                        WHERE id_preferences=(SELECT id_preferences FROM users WHERE id_vk_user=%s);
-                        ''', (viewed_status, id_vk_user))
+                        WHERE id_preferences=(
+                        SELECT id_preferences FROM users u
+                        JOIN selection s ON u.id_selection = s.id_selection
+                        WHERE id_vk_user=%s and requester=%s);
+                        ''', (viewed_status, id_vk_user, requester_id))
             conn.commit()
 
-    def show_favorites(self, favorites_status: bool): # показывает избранных если ключ True (без черного списка)
+    def show_favorites(self, requester_id: int, favorites_status: bool): # показывает избранных если ключ True (без черного списка)
         with conn.cursor() as cur:
             cur.execute(f'''
                         SELECT name, surname, user_age, p.id_preferences FROM users u
                         JOIN preferences p ON u.id_preferences = p.id_preferences
-                        WHERE favorites=%s and black_list=False;
-                        ''', (favorites_status,))
+                        JOIN selection s ON u.id_selection = s.id_selection
+                        WHERE favorites=%s and black_list=False and requester=%s;
+                        ''', (favorites_status, requester_id))
             favorites_list = cur.fetchall()
         return favorites_list
 
-    def show_black_list(self, black_list_status: bool): # показывает черный список если ключ True
+    def show_black_list(self, requester_id: int, black_list_status: bool): # показывает черный список если ключ True
         with conn.cursor() as cur:
             cur.execute(f'''
                         SELECT name, surname, user_age, p.id_preferences FROM users u
                         JOIN preferences p ON u.id_preferences = p.id_preferences
-                        WHERE black_list=%s;
-                        ''', (black_list_status,))
+                        JOIN selection s ON u.id_selection = s.id_selection
+                        WHERE black_list=%s and requester=%s;
+                        ''', (black_list_status, requester_id))
             black_list_list = cur.fetchall()
         return black_list_list
 
-    def show_viewed(self, viewed_status: bool): # показывает просмотренных если ключ True (без черного списка)
+    def show_viewed(self, requester_id: int, viewed_status: bool): # показывает просмотренных если ключ True (без черного списка)
         with conn.cursor() as cur:
             cur.execute(f'''
                         SELECT name, surname, user_age, p.id_preferences FROM users u
                         JOIN preferences p ON u.id_preferences = p.id_preferences
-                        WHERE viewed=%s and black_list=False;
-                        ''', (viewed_status,))
+                        JOIN selection s ON u.id_selection = s.id_selection
+                        WHERE viewed=%s and black_list=False and requester=%s;
+                        ''', (viewed_status, requester_id))
             viewed_list = cur.fetchall()
         return viewed_list
                         
@@ -164,7 +177,7 @@ class Database:
 #     test = Database()
 
 
-base = Database()
-base.drop_tables()
-base.create_tables()
+test = Database()
+test.drop_tables()
+test.create_tables()
 
