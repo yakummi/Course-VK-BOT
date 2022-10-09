@@ -11,8 +11,24 @@ from CourseVkBot.database.database import Database
 from CourseVkBot.database.database1 import base
 
 
-
 class VkBot:
+
+    preferences = {
+        'favorites': False,
+        'black_list': False,
+        'viewed': False
+    }
+    preferences_values = (
+        preferences['favorites'],
+        preferences['black_list'],
+        preferences['viewed']
+    )
+
+    user_search_info = ['preferences', 'users', 'photos', preferences_values, ]
+
+    photos_user = []
+
+    user_information = []
 
     user_preferences = []
 
@@ -40,6 +56,22 @@ class VkBot:
         except Exception as ex:
             pass
 
+    def get_photos_datebase(self, user_id):
+        try:
+            list_photo = []
+            photos = self.session_search.method('photos.getAll', {'owner_id': user_id, 'extended': 1, 'count': 1})
+            for likes in photos['items']:
+                like = (likes['likes']['count'])
+
+            print(photos)
+            for e in photos['items']:
+                photo = ('photo' + str(e['owner_id']) + '_' + str(e['id']))
+                photos_finish = (photo, like)
+                self.photos_user.append(photos_finish)
+            return list_photo
+        except Exception as ex:
+            pass
+
     def info_search(self, user_id, age_user):
         info = self.session_search.method('users.get', {'user_id': user_id,
                                                         'fields': 'bdate'})
@@ -53,6 +85,8 @@ class VkBot:
                     return age_user
             else:
                 return age_user
+        print(f'Это info_search: {info}')
+
 
     def get_id_cities(self, q, id_country):
         id_city = self.session_search.method('database.getCities', {'q': q,
@@ -87,6 +121,8 @@ class VkBot:
                                                              'age_from': age_from-2,
                                                              'age_to': age_from+2})
 
+
+
         if stop != None:
             with conn.cursor() as cur:
                 try:
@@ -101,10 +137,34 @@ class VkBot:
         );
         ''')
                         conn.commit()
-                        # Добавляем пользователей в базу данных
+
+                        self.get_photos_datebase(id_user)
+
+
+
+                        test_info = []
+
+                        age = self.info_search(id_user, age_from)
+
+                        test_info.append(id_user)
+                        test_info.append(name)
+                        test_info.append(last_name)
+                        test_info.append(age)
+
+                        n = tuple(test_info)
+
+                        self.user_information.append(n)
+
+
+                        print(self.user_information)
+
+
+
                 except Exception as ex:
                     print(ex)
                 conn.close()
+        # print(f'Это search_people: {search}')
+
 
     def get_info_user(self, user_id): # не нужна
         info = {}
@@ -254,11 +314,34 @@ class VkBot:
 
                     finish_tuple_info_user_preferences = tuple(self.user_preferences)
 
-                    base.insert_request('selection', finish_tuple_info_user_preferences)
+                    id_selection = base.insert_request('selection', finish_tuple_info_user_preferences)
+
+                    self.user_search_info.append(id_selection)
+
+                    print(self.user_search_info)
 
                     self.send_message(user_id, 'Поиск начался...', photo=r'photo-216252230_457239019')
                     self.search_people(user_id, city=self.id_city_search, sex=int(sex), country=self.id_country, age_from=self.user_preferences[1], stop=not None) # остановился тут нужно понять как делать подбор анкет
 
+                    self.user_search_info.append(self.user_information)
+
+                    photos = {'link': 'https://ya.ru/', 'likes': False}
+                    photos_values = (photos['link'], photos['likes'])
+
+                    print(self.user_search_info)
+
+                    gen = (x for x in self.photos_user).__iter__()
+
+                    for users in self.user_information:
+                        try:
+                            base.insert_base('preferences', 'users', 'photos', self.preferences_values, id_selection,
+                                            users,
+                                            gen.__next__())
+                        except StopIteration:
+                            print('Итератор опустошен')
+                            break
+
+                    print(self.photos_user)
 
                     ankets_keyboard = VkKeyboard(one_time=True)
                     button_name = ['Показать анкеты']
@@ -300,6 +383,7 @@ class VkBot:
                         user = json.load(f)
 
                     photos = self.get_photos(user['id'])
+                    print(photos)
                     # info_search(int(user['id']), 18) # Брать из бд у нашего пользователя
                     self.send_message(user_id, f"Имя: {user['name']}\nФамилия: {user['surname']}\nВозраст: {self.info_search(int(user['id']), 18)}\nСсылка: {'https://vk.com/id'+str(user['id'])}", keyboard_user, photo=photos)
 

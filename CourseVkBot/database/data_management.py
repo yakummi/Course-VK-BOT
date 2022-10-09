@@ -1,4 +1,4 @@
-from database1 import test
+from database1 import base
 import json
 from datetime import datetime
 
@@ -41,7 +41,7 @@ preferences_values = (
 photos = {'link': 'https://ya.ru/', 'likes': False}
 photos_values = (photos['link'], photos['likes'])
 
-
+print(photos_values)
 
 # with open('slist.txt', 'r') as file:
 #     data_dict = json.load(file)
@@ -62,17 +62,17 @@ for user in vk_data:
 print(vk_data_fixed)
 
 # наполняем базу
-id_selection = test.insert_request('selection', current_request_values)
+id_selection = base.insert_request('selection', current_request_values)
 
 for user in vk_data_fixed:
-    test.insert_base('preferences', 'users', 'photos', preferences_values, id_selection, user, photos_values)
+    base.insert_base('preferences', 'users', 'photos', preferences_values, id_selection, user, photos_values)
 
 
 # тест
 
-test.change_favorites(requester, 430467985, True)
-test.change_black_list(requester, 496266400, True)
-test.change_viewed(requester, 403454198, True)
-print(test.show_favorites(requester, False))
-print(test.show_black_list(requester, False))
-print(test.show_viewed(requester, False))
+base.change_favorites(requester, 430467985, True)
+base.change_black_list(requester, 496266400, True)
+base.change_viewed(requester, 403454198, True)
+print(base.show_favorites(requester, False))
+print(base.show_black_list(requester, False))
+print(base.show_viewed(requester, False))
