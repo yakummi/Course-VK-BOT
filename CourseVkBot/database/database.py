@@ -81,6 +81,19 @@ class Database:
                 ''')
             conn.commit()
 
+
+    def validate_country(self, country, id_country):
+        with conn.cursor() as cur:
+            select = f'''
+               SELECT *
+               FROM ids_countries
+               where country = {repr(country)};
+               '''
+            cur.execute(select)
+            rec = cur.fetchall()
+            for id_c in rec:
+                id_country += int(id_c[0])
+            conn.commit()
     def write_id_country(self):
         id_countries = session.method('database.getCountries', {'need_all': 1,
                                                                 'count': 1000})
