@@ -199,6 +199,6 @@ class Database:
 
 base = Database()
 # base.drop_tables()
-# base.create_tables()
+base.create_tables()
 # base.write_id_country()
 

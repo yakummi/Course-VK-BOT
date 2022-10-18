@@ -63,14 +63,14 @@ class VkBot:
             for elements in list_photo:
                 photos_tuple = (elements['photo_id'], elements['like'])
                 self.photos_user.append(photos_tuple)
-                return elements['photo_id']
+                return elements['photo_id'], elements['like']
         except Exception as ex:
             list_photo = []
             list_photo.append({'like': 0, 'photo_id': 'photo-216252230_457239173'})
             for elements in list_photo:
                 photos_tuple = (elements['photo_id'], elements['like'])
                 self.photos_user.append(photos_tuple)
-                return elements['photo_id']
+                return elements['photo_id'], elements['like']
 
     def info_search(self, user_id, age_user):
         info = self.session_search.method('users.get', {'user_id': user_id,
@@ -108,7 +108,7 @@ class VkBot:
 
         self.session.method('messages.send', post)
 
-    def search_people(self, user_id, city, sex, country, age_from, stop=None):
+    def search_people(self, user_id, city, sex, country, age_from):
         search = self.session_search.method('users.search', {'sort': 0,
                                                              'city': city,
                                                              'sex': sex,
@@ -118,33 +118,31 @@ class VkBot:
                                                              'age_from': age_from-2,
                                                              'age_to': age_from+2})
 
+        try:
+            for info in search['items']:
+                id_user = info['id']
+                name = info['first_name']
+                last_name = info['last_name']
+                self.get_photos_database(id_user)
 
+                test_info = []
 
-        if stop != None:
-            try:
-                for info in search['items']:
-                    id_user = info['id']
-                    name = info['first_name']
-                    last_name = info['last_name']
-                    self.get_photos_database(id_user)
+                age = self.info_search(id_user, age_from)
 
-                    test_info = []
+                test_info.append(id_user)
+                test_info.append(name)
+                test_info.append(last_name)
+                test_info.append(age)
 
-                    age = self.info_search(id_user, age_from)
+                n = tuple(test_info)
 
-                    test_info.append(id_user)
-                    test_info.append(name)
-                    test_info.append(last_name)
-                    test_info.append(age)
+                self.user_information.append(n)
 
-                    n = tuple(test_info)
+                print(self.user_information)
+                yield self.user_information
 
-                    self.user_information.append(n)
-
-                    print(self.user_information)
-
-            except Exception as ex:
-                print(ex)
+        except Exception as ex:
+            print(ex)
 
     def get_info_user(self, user_id):
         info = {}
@@ -287,7 +285,11 @@ class VkBot:
                     self.user_search_info.append(id_selection)
 
                     self.send_message(user_id, 'Поиск начался...', photo=r'photo-216252230_457239019')
-                    self.search_people(user_id, city=self.id_city_search, sex=int(self.gender_INFO[0]), country=self.id_country, age_from=self.user_preferences[1], stop=not None) # остановился тут нужно понять как делать подбор анкет
+                    people = self.search_people(user_id, city=self.id_city_search, sex=int(self.gender_INFO[0]), country=self.id_country, age_from=self.user_preferences[1]) # остановился тут нужно понять как делать подбор анкет
+                    try:
+                        next(people)
+                    except StopIteration as ex:
+                        print(ex)
 
                     self.user_search_info.append(self.user_information)
 
@@ -343,9 +345,12 @@ class VkBot:
                     with open('data/user_search.json', 'r', encoding='utf-8') as f:
                         user = json.load(f)
 
-                    photos = self.get_photos_database(user['id'])
 
-                    self.send_message(user_id, f"Имя: {user['name']}\nФамилия: {user['surname']}\nВозраст: {self.info_search(int(user['id']), 18)}\nСсылка: {'https://vk.com/id'+str(user['id'])}", keyboard_user, photo=photos)
+
+                    photos = self.get_photos_database(user['id'])
+                    # photo = self.get_photos_database(photos_iter.__next__())
+
+                    self.send_message(user_id, f"Имя: {user['name']}\nФамилия: {user['surname']}\nВозраст: {self.info_search(int(user['id']), 18)}\nСсылка: {'https://vk.com/id'+str(user['id'])}", keyboard_user, photo=photos[0])
                     base.change_viewed(user_id, user['id'], False)
 
                 if text == 'следующий пользователь':
@@ -384,9 +389,32 @@ class VkBot:
                     with open('data/user_search.json', 'r', encoding='utf-8') as f:
                         user = json.load(f)
 
-                    photos = self.get_photos_database(user['id'])
+                    # photos = self.get_photos_database(user['id'])
 
-                    self.send_message(user_id, f"Имя: {user['name']}\nФамилия: {user['surname']}\nВозраст: {self.info_search(int(user['id']), 18)}\nСсылка: {'https://vk.com/id'+str(user['id'])}", keyboard_user, photo=photos)
+
+
+                    n = next(people)
+                    print(n)
+
+                    photo = self.get_photos_database(int(n[-1][0]))
+                    print(photo)
+
+                    list = {
+                            "id": n[-1][0],
+                            "name": n[-1][1],
+                            "surname": n[-1][2]
+                        }
+
+                    with open('data/user_search.json', 'w', encoding='utf-8') as f:
+                        json.dump(list, f, indent=4, ensure_ascii=False)
+
+                    base.insert_base('preferences', 'users', 'photos', self.preferences_values, id_selection,
+                                     n[-1],
+                                     photo)
+
+                    self.send_message(user_id, f"Имя: {n[-1][1]}\nФамилия: {n[-1][2]}\nВозраст: {int(n[-1][3])}\nСсылка: {'https://vk.com/id'+str(n[-1][0])}", keyboard_user, photo=photo[0])
+
+                    next(people)
 
                     self.i += 1
                     base.change_viewed(user_id, user['id'], True)
@@ -423,6 +451,7 @@ class VkBot:
                     keyboard_user.add_button(label='Добавить в черный список', color=VkKeyboardColor.NEGATIVE)
 
                     favorites_users = base.show_favorites(user_id, True)
+                    print(favorites_users)
                     try:
                         for x in favorites_users:
                             self.send_message(user_id, f"Имя: {x[0]}\nФамилия: {x[1]}\nСсылка: {'https://vk.com/id' + str(x[4])}\nВозраст: {x[2]}", keyboard_user)
@@ -452,4 +481,5 @@ class VkBot:
 
 if __name__ == '__main__':
     test = VkBot()
+    
     test.bot_functionality()
