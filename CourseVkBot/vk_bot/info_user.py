@@ -290,10 +290,15 @@ class VkBot:
                         next(people)
                     except StopIteration as ex:
                         print(ex)
+                    self.search_people(user_id, city=self.id_city_search, sex=int(self.gender_INFO[0]), country=self.id_country, age_from=self.user_preferences[1])
 
                     self.user_search_info.append(self.user_information)
 
+                    print('Это из user_information: ', self.user_information)
+
                     photos_iter = (x for x in self.photos_user).__iter__()
+
+                    print(photos_iter)
 
                     for users in self.user_information:
                         try:
@@ -354,6 +359,22 @@ class VkBot:
                     base.change_viewed(user_id, user['id'], False)
 
                 if text == 'следующий пользователь':
+                    self.search_people(user_id, city=self.id_city_search, sex=int(self.gender_INFO[0]), country=self.id_country, age_from=self.user_preferences[1]) # остановился тут нужно понять как делать подбор анкет
+                    self.user_search_info.append(self.user_information)
+
+                    photos_iter = (x for x in self.photos_user).__iter__()
+
+                    print(photos_iter)
+
+                    for users in self.user_information:
+                        try:
+                            base.insert_base('preferences', 'users', 'photos', self.preferences_values, id_selection,
+                                             users,
+                                             photos_iter.__next__())
+                        except StopIteration:
+                            print('Итератор опустошен')
+                            break
+
                     global i
                     conn = psycopg2.connect(database=CourseVkBot.database.config.Settings.DATABASE,
                                             user=CourseVkBot.database.config.Settings.USER,
