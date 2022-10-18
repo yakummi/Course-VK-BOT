@@ -1,13 +1,13 @@
-import CourseVkBot.database.config
-from CourseVkBot.bot_configs.token import TOKEN
+import database.config
+from bot_configs.token import TOKEN
 import vk_api
 import psycopg2
-from CourseVkBot.bot_configs.token_user_vk import TOKEN_VK_USER
+from bot_configs.token_user_vk import TOKEN_VK_USER
 from vk_api.longpoll import VkLongPoll, VkEventType, VkMessageFlag
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 import datetime
 import json
-from CourseVkBot.database.database import base
+from database.database import base
 import sys
 
 class VkBot:
@@ -108,7 +108,7 @@ class VkBot:
 
         self.session.method('messages.send', post)
 
-    def search_people(self, user_id, city, sex, country, age_from, stop=None):
+    def search_people(self, user_id, city, sex, country, age_from):
         search = self.session_search.method('users.search', {'sort': 0,
                                                              'city': city,
                                                              'sex': sex,
@@ -119,32 +119,34 @@ class VkBot:
                                                              'age_to': age_from+2})
 
 
+        try: # здесь итератор
+            my_iterator = search['items']
+            el = iter(my_iterator)
+            for r in el:
+                print(r)
+                id_user = r['id']
+                name = r['first_name']
+                last_name = r['last_name']
+                self.get_photos_database(id_user)
 
-        if stop != None:
-            try:
-                for info in search['items']:
-                    id_user = info['id']
-                    name = info['first_name']
-                    last_name = info['last_name']
-                    self.get_photos_database(id_user)
+                test_info = []
 
-                    test_info = []
+                age = self.info_search(id_user, age_from)
 
-                    age = self.info_search(id_user, age_from)
+                test_info.append(id_user)
+                test_info.append(name)
+                test_info.append(last_name)
+                test_info.append(age)
 
-                    test_info.append(id_user)
-                    test_info.append(name)
-                    test_info.append(last_name)
-                    test_info.append(age)
+                n = tuple(test_info)
 
-                    n = tuple(test_info)
+                self.user_information.append(n)
 
-                    self.user_information.append(n)
+                print(self.user_information)
+                break
 
-                    print(self.user_information)
-
-            except Exception as ex:
-                print(ex)
+        except Exception as ex:
+            print(ex)
 
     def get_info_user(self, user_id):
         info = {}
@@ -218,8 +220,8 @@ class VkBot:
                     for event in VkLongPoll(self.session).listen():
                         if event.type == VkEventType.MESSAGE_NEW:
 
-                            conn = psycopg2.connect(database=CourseVkBot.database.config.Settings.DATABASE, user=CourseVkBot.database.config.Settings.USER,
-                                                    password=CourseVkBot.database.config.Settings.PASSWORD)
+                            conn = psycopg2.connect(database=database.config.Settings.DATABASE, user=database.config.Settings.USER,
+                                                    password=database.config.Settings.PASSWORD)
 
                             country = str(event.text).capitalize()
 
@@ -287,11 +289,15 @@ class VkBot:
                     self.user_search_info.append(id_selection)
 
                     self.send_message(user_id, 'Поиск начался...', photo=r'photo-216252230_457239019')
-                    self.search_people(user_id, city=self.id_city_search, sex=int(self.gender_INFO[0]), country=self.id_country, age_from=self.user_preferences[1], stop=not None) # остановился тут нужно понять как делать подбор анкет
+                    self.search_people(user_id, city=self.id_city_search, sex=int(self.gender_INFO[0]), country=self.id_country, age_from=self.user_preferences[1])
 
                     self.user_search_info.append(self.user_information)
 
+                    print('Это из user_information: ', self.user_information)
+
                     photos_iter = (x for x in self.photos_user).__iter__()
+
+                    print(photos_iter)
 
                     for users in self.user_information:
                         try:
@@ -319,9 +325,9 @@ class VkBot:
                     keyboard_user.add_line()
                     keyboard_user.add_button(label='Добавить в черный список', color=VkKeyboardColor.NEGATIVE)
 
-                    conn = psycopg2.connect(database=CourseVkBot.database.config.Settings.DATABASE,
-                                            user=CourseVkBot.database.config.Settings.USER,
-                                            password=CourseVkBot.database.config.Settings.PASSWORD)
+                    conn = psycopg2.connect(database=database.config.Settings.DATABASE,
+                                            user=database.config.Settings.USER,
+                                            password=database.config.Settings.PASSWORD)
                     with conn.cursor() as cur:
                         select_user = f'''
                         SELECT *
@@ -349,10 +355,26 @@ class VkBot:
                     base.change_viewed(user_id, user['id'], False)
 
                 if text == 'следующий пользователь':
+                    self.search_people(user_id, city=self.id_city_search, sex=int(self.gender_INFO[0]), country=self.id_country, age_from=self.user_preferences[1]) # остановился тут нужно понять как делать подбор анкет
+                    self.user_search_info.append(self.user_information)
+
+                    photos_iter = (x for x in self.photos_user).__iter__()
+
+                    print(photos_iter)
+
+                    for users in self.user_information:
+                        try:
+                            base.insert_base('preferences', 'users', 'photos', self.preferences_values, id_selection,
+                                             users,
+                                             photos_iter.__next__())
+                        except StopIteration:
+                            print('Итератор опустошен')
+                            break
+
                     global i
-                    conn = psycopg2.connect(database=CourseVkBot.database.config.Settings.DATABASE,
-                                            user=CourseVkBot.database.config.Settings.USER,
-                                            password=CourseVkBot.database.config.Settings.PASSWORD)
+                    conn = psycopg2.connect(database=database.config.Settings.DATABASE,
+                                            user=database.config.Settings.USER,
+                                            password=database.config.Settings.PASSWORD)
                     with conn.cursor() as cur:
                         keyboard_user = VkKeyboard(one_time=True)
                         button_name = ['Следующий пользователь', 'В избранное', 'Избранные']

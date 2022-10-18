@@ -1,8 +1,8 @@
 import psycopg2
 from dataclasses import dataclass
-from CourseVkBot.database.config import Settings
+from database.config import Settings
 import vk_api
-from CourseVkBot.bot_configs.token_user_vk import TOKEN_VK_USER
+from bot_configs.token_user_vk import TOKEN_VK_USER
 session = vk_api.VkApi(token=TOKEN_VK_USER)
 
 conn = psycopg2.connect(database=Settings.DATABASE, user=Settings.USER, password=Settings.PASSWORD)
